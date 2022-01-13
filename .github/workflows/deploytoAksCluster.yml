@@ -1,0 +1,50 @@
+on: [push]
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@master
+    
+    - uses: azure/docker-login@v1
+      with:
+        login-server: alwayson.azurecr.io
+        username: ${{ secrets.acr_alwayson_username }}
+        password: ${{ secrets.acr_alwayson_password }}
+    
+    - name: Build and push image to ACR
+      id: build-image
+      run: |
+        docker build "$GITHUB_WORKSPACE/apis/poi/web" -f  "apis/poi/web/Dockerfile" -t alwayson.azurecr.io/jaz400:${{ github.sha }} --label dockerfile-path=apis/poi/web/Dockerfile
+        docker push alwayson.azurecr.io/jaz400:${{ github.sha }}
+    
+    - uses: azure/k8s-set-context@v1
+      with:
+         kubeconfig: ${{ secrets.aks_jaz400_kubeConfig }}
+      id: login
+    
+    - name: Create namespace
+      run: |
+        namespacePresent=`kubectl get namespace | grep jaz400bc16 | wc -l`
+        if [ $namespacePresent -eq 0 ]
+        then
+            echo `kubectl create namespace jaz400bc16`
+        fi
+
+    - uses: azure/k8s-create-secret@v1
+      with:
+        namespace: jaz400bc16
+        container-registry-url: alwayson.azurecr.io
+        container-registry-username: ${{ secrets.acr_alwayson_username }}
+        container-registry-password: ${{ secrets.acr_alwayson_password }}
+        secret-name: jaz400dockerauth
+       
+    - uses: azure/k8s-deploy@v1.2
+      with:
+        namespace: jaz400bc16
+        manifests: |
+          manifests/deployment.yml
+          manifests/service.yml
+        images: |
+          alwayson.azurecr.io/jaz400:${{ github.sha }}
+        imagepullsecrets: |
+          jaz400dockerauth
