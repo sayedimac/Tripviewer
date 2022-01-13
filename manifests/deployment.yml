@@ -1,0 +1,19 @@
+apiVersion : apps/v1
+kind: Deployment
+metadata:
+  name: "jaz400-ef9f"
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: "jaz400-ef9f"
+  template:
+    metadata:
+      labels:
+        app: "jaz400-ef9f"
+    spec:
+      containers:
+        - name: "jaz400-ef9f"
+          image: "alwayson.azurecr.io/jaz400"
+          ports:
+          - containerPort: 8080
